@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Калькулятор монтажа кондиционеров</title>
+<style>
+  body{font-family:Arial, sans-serif; background:#f3f4f6; padding:20px; margin:0}
+  .card{background:#fff; padding:16px; border-radius:12px; margin-bottom:16px; box-shadow:0 4px 12px rgba(0,0,0,0.05)}
+  h1,h2{margin:0 0 10px}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  label{font-size:13px; color:#555}
+  input,select{width:100%; padding:10px; border-radius:8px; border:1px solid #ddd}
+  .total{font-size:28px; font-weight:bold; margin-top:10px}
+  button{padding:12px; border-radius:10px; border:none; background:#111; color:#fff; cursor:pointer}
+</style>
+</head>
+<body>
+
+<div class="card">
+<h1>Калькулятор монтажа</h1>
+</div>
+
+<div class="card">
+<div class="grid">
+<div>
+<label>Мощность</label>
+<select id="capacity">
+<option value="7-9">7–9</option>
+<option value="12">12</option>
+<option value="18">18</option>
+<option value="24">24</option>
+<option value="30">30</option>
+<option value="36">36</option>
+</select>
+</div>
+
+<div>
+<label>Тип монтажа</label>
+<select id="mountType">
+<option value="standard">На нашу трассу</option>
+<option value="existing">На чужую трассу</option>
+</select>
+</div>
+
+<div>
+<label>Трасса (м)</label>
+<input id="routeMeters" type="number" value="0">
+</div>
+
+<div>
+<label>Доп. отверстия (обычные)</label>
+<input id="extraHolesNormal" type="number" value="0">
+</div>
+
+<div>
+<label>Доп. отверстия (арм.)</label>
+<input id="extraHolesArm" type="number" value="0">
+</div>
+
+<div>
+<label>Этаж (подъем инструмента)</label>
+<input id="floors" type="number" value="0">
+</div>
+
+<div>
+<label>Скидка (%)</label>
+<select id="discount">
+<option value="0">0%</option>
+<option value="5">5%</option>
+<option value="10">10%</option>
+<option value="15">15%</option>
+</select>
+</div>
+
+</div>
+
+<div class="total" id="total">0 ₽</div>
+</div>
+
+<script>
+const SHEET_ID = "1dMxyAjq8HAdgFoslKX1snfuOEsAWbLtCilWGhg9OoUc";
+
+const URL_MAIN = `https://opensheet.elk.sh/${SHEET_ID}/prices_main`;
+const URL_EXTRA = `https://opensheet.elk.sh/${SHEET_ID}/prices_extra`;
+
+let PRICES = {};
+
+async function loadPrices(){
+  const [main, extra] = await Promise.all([
+    fetch(URL_MAIN).then(r=>r.json()),
+    fetch(URL_EXTRA).then(r=>r.json())
+  ]);
+
+  PRICES.standard = {};
+  PRICES.existing = {};
+  PRICES.route = {};
+
+  main.forEach(r=>{
+    PRICES.standard[r.capacity]=+r.standard;
+    PRICES.existing[r.capacity]=+r.existing;
+    PRICES.route[r.capacity]=+r.route;
+  });
+
+  PRICES.extra={};
+  extra.forEach(r=>{
+    PRICES.extra[r.key]=+r.value;
+  });
+
+  update();
+}
+
+function calc(){
+  let c = document.getElementById("capacity").value;
+  let type = document.getElementById("mountType").value;
+  let route = +document.getElementById("routeMeters").value;
+  let holes = +document.getElementById("extraHolesNormal").value;
+  let holesArm = +document.getElementById("extraHolesArm").value;
+  let floors = +document.getElementById("floors").value;
+  let disc = +document.getElementById("discount").value;
+
+  let total = type==="standard" ? PRICES.standard[c] : PRICES.existing[c];
+
+  let paid = type==="standard" ? Math.max(0, route-1) : route;
+  total += paid * PRICES.route[c];
+
+  total += holes * PRICES.extra.holeNormal;
+  total += holesArm * PRICES.extra.holeArm;
+
+  if(floors>=2){
+    total += (floors-1) * PRICES.extra.stairs;
+  }
+
+  total -= total * disc / 100;
+
+  document.getElementById("total").innerText =
+    new Intl.NumberFormat("ru-RU").format(Math.round(total))+" ₽";
+}
+
+function update(){
+  if(!PRICES.standard) return;
+  calc();
+}
+
+document.querySelectorAll("input,select").forEach(el=>{
+  el.addEventListener("input", update);
+});
+
+loadPrices();
+</script>
+
+</body>
+</html>
